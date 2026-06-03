@@ -1,0 +1,6 @@
+{
+  "name": "Book Analyzer",
+  "description": "Analyze markdown, plain text, and PDF books for grammar, readability, narrative flow, logical consistency, and structural coherence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
