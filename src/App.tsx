@@ -18,7 +18,9 @@ import {
   Copy,
   Check,
   Key,
-  Settings
+  Settings,
+  Edit3,
+  Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { SAMPLE_MANUSCRIPTS } from "./samples";
@@ -53,6 +55,8 @@ export default function App() {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
   const [sessionApiKey, setSessionApiKey] = useState<string>(() => localStorage.getItem("lumina_api_key") || "");
   const [apiKeyInput, setApiKeyInput] = useState<string>(() => localStorage.getItem("lumina_api_key") || "");
+  const [manuscriptCopied, setManuscriptCopied] = useState<boolean>(false);
+  const [isEditingInViewer, setIsEditingInViewer] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const paperScrollRef = useRef<HTMLDivElement>(null);
@@ -411,6 +415,56 @@ export default function App() {
       setTimeout(() => setCopiedStatus(false), 2000);
     } catch (err) {
       console.error("Failed to copy clipboard:", err);
+    }
+  };
+
+  const handleCopyManuscript = async () => {
+    try {
+      await navigator.clipboard.writeText(manuscriptText);
+      setManuscriptCopied(true);
+      setTimeout(() => setManuscriptCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy manuscript text:", err);
+    }
+  };
+
+  const applyGrammarFix = (original: string, correction: string) => {
+    if (!original || !correction) return;
+    let newText = manuscriptText;
+    if (newText.includes(original)) {
+      newText = newText.replace(original, correction);
+    } else {
+      const index = newText.toLowerCase().indexOf(original.toLowerCase());
+      if (index !== -1) {
+        newText = newText.substring(0, index) + correction + newText.substring(index + original.length);
+      }
+    }
+    setManuscriptText(newText);
+    if (analysisResult && analysisResult.grammarIssues) {
+      setAnalysisResult({
+        ...analysisResult,
+        grammarIssues: analysisResult.grammarIssues.filter((issue) => issue.original !== original),
+      });
+    }
+  };
+
+  const applyReadabilityFix = (original: string, suggestion: string) => {
+    if (!original || !suggestion) return;
+    let newText = manuscriptText;
+    if (newText.includes(original)) {
+      newText = newText.replace(original, suggestion);
+    } else {
+      const index = newText.toLowerCase().indexOf(original.toLowerCase());
+      if (index !== -1) {
+        newText = newText.substring(0, index) + suggestion + newText.substring(index + original.length);
+      }
+    }
+    setManuscriptText(newText);
+    if (analysisResult && analysisResult.readabilitySuggestions) {
+      setAnalysisResult({
+        ...analysisResult,
+        readabilitySuggestions: analysisResult.readabilitySuggestions.filter((s) => s.original !== original),
+      });
     }
   };
 
@@ -802,51 +856,170 @@ export default function App() {
                 />
               </div>
             )}
-          </div>
-
-          {/* Living Manuscript View Panel */}
+          </div>          {/* Living Manuscript View Panel */}
           <div className="bg-white rounded-xl border border-stone-200/60 shadow-sm flex flex-col flex-1 overflow-hidden">
-            <div className="bg-stone-50/60 border-b border-stone-250 px-4 py-3 flex items-center justify-between">
+            <div className="bg-stone-50/60 border-b border-stone-250 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
               <span className="text-[10px] font-mono text-stone-500 uppercase flex items-center gap-1.5 font-bold tracking-wider">
                 <FileText className="w-3.5 h-3.5 text-stone-400" /> 
                 {fileName ? `SOURCE: ${fileName}` : `SOURCE: ${SAMPLE_MANUSCRIPTS.find(s => s.id === selectedSampleId)?.title || "Manual Input"}`}
               </span>
-              <div className="flex gap-1.5 font-mono text-[8px] font-bold">
-                {analysisResult ? (
-                  <>
-                    <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded-md border border-red-150">
-                      {analysisResult.grammarIssues?.length || 0} GRAMMAR
-                    </span>
-                    <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-150">
-                      {((analysisResult.logicAndFlow?.length || 0) + (analysisResult.consistencyIssues?.length || 0))} LOGIC
-                    </span>
-                  </>
-                ) : (
-                  <span className="bg-stone-100 text-stone-450 border border-stone-200 px-2 py-0.5 rounded-md tracking-wider uppercase">
-                    PENDING REVIEW
-                  </span>
+              
+              <div className="flex items-center gap-2">
+                {fileType !== "pdf" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingInViewer(!isEditingInViewer);
+                      if (!isEditingInViewer) setActiveHighlight(null);
+                    }}
+                    className={`cursor-pointer px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border font-mono transition-all active:scale-95 flex items-center gap-1 ${
+                      isEditingInViewer 
+                        ? "bg-stone-900 border-stone-900 text-white animate-pulse" 
+                        : "bg-white border-stone-200 text-stone-600 hover:bg-stone-50"
+                    }`}
+                  >
+                    {isEditingInViewer ? (
+                      <>
+                        <Eye className="w-3 h-3 text-stone-200" />
+                        <span>Interactive View</span>
+                      </>
+                    ) : (
+                      <>
+                        <Edit3 className="w-3 h-3 text-stone-500" />
+                        <span>Edit Manuscript</span>
+                      </>
+                    )}
+                  </button>
                 )}
+                
+                <div className="flex gap-1.5 font-mono text-[8px] font-bold">
+                  {analysisResult ? (
+                    <>
+                      <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded-md border border-red-150">
+                        {analysisResult.grammarIssues?.length || 0} GRAMMAR
+                      </span>
+                      <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-150">
+                        {((analysisResult.logicAndFlow?.length || 0) + (analysisResult.consistencyIssues?.length || 0))} LOGIC
+                      </span>
+                    </>
+                  ) : (
+                    <span className="bg-stone-100 text-stone-450 border border-stone-200 px-2 py-0.5 rounded-md tracking-wider uppercase">
+                      PENDING REVIEW
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             
-            <div className="p-4 overflow-y-auto max-h-[380px] lg:max-h-[440px] bg-[#fbfbfa]/60" ref={paperScrollRef}>
-              <div className="paper-texture p-5 lg:p-6 rounded-lg border border-stone-200 shadow-xs min-h-[250px]">
-                {renderInteractiveManuscript()}
-              </div>
+            <div className="relative flex-1 min-h-0 flex flex-col">
+              {/* Floating Copy Button */}
+              {manuscriptText.trim() && !isEditingInViewer && (
+                <div className="absolute top-6 right-6 z-10">
+                  <button
+                    type="button"
+                    id="copy-manuscript-btn"
+                    onClick={handleCopyManuscript}
+                    className={`cursor-pointer px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm active:scale-95 flex items-center gap-1.5 transition-all duration-150 border ${
+                      manuscriptCopied
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 animate-none"
+                        : "bg-white/90 backdrop-blur-xs text-stone-700 border-stone-200/80 hover:bg-white hover:text-stone-900 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+                    }`}
+                    title="Copy core manuscript text to clipboard"
+                  >
+                    {manuscriptCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-stone-500" />
+                        <span>Copy Text</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {isEditingInViewer ? (
+                <div className="p-4 flex flex-col flex-1 bg-[#fbfbfa]/60">
+                  <div className="mb-2 flex items-center justify-between text-[9px] font-mono text-stone-400 font-bold uppercase tracking-wider">
+                    <span>Manuscript Live-Editor Mode</span>
+                    <span>{manuscriptText.length} characters</span>
+                  </div>
+                  <textarea
+                    value={manuscriptText}
+                    onChange={(e) => {
+                      setManuscriptText(e.target.value);
+                      setSelectedSampleId("custom");
+                    }}
+                    placeholder="Enter or modify your manuscript text here..."
+                    className="w-full flex-1 min-h-[250px] p-5 font-serif text-sm leading-relaxed text-stone-850 bg-[#fbfbfa] border border-stone-200 shadow-inner rounded-xl focus:outline-none focus:ring-1 focus:ring-stone-350 resize-none font-medium text-left"
+                  />
+                </div>
+              ) : (
+                <div className="p-4 overflow-y-auto max-h-[380px] lg:max-h-[440px] bg-[#fbfbfa]/60 flex-1 text-left" ref={paperScrollRef}>
+                  <div className="paper-texture p-5 lg:p-6 rounded-lg border border-stone-200 shadow-xs min-h-[250px]">
+                    {renderInteractiveManuscript()}
+                  </div>
+                </div>
+              )}
             </div>
-                       {activeHighlight && (
-              <div className="bg-amber-50/80 border-t border-amber-150 p-2.5 px-4 flex items-center justify-between">
-                <span className="text-[10px] font-sans text-amber-850 flex items-center font-semibold uppercase tracking-wider">
-                  <Info className="w-3.5 h-3.5 mr-1.5 text-amber-600" /> Active selector highlight loaded.
-                </span>
-                <button
-                  onClick={() => setActiveHighlight(null)}
-                  className="cursor-pointer text-[9px] bg-white border border-amber-200 hover:bg-amber-100/50 text-amber-900 px-2.5 py-0.5 rounded-md font-mono font-bold transition-colors uppercase tracking-wider"
-                >
-                  Reset Hook
-                </button>
-              </div>
-            )}
+
+            {activeHighlight && (() => {
+              const activeGrammarIssue = analysisResult?.grammarIssues?.find(
+                (issue) => issue.original.toLowerCase() === activeHighlight.toLowerCase()
+              );
+              const activeReadabilitySuggestion = analysisResult?.readabilitySuggestions?.find(
+                (suggestion) => suggestion.original.toLowerCase() === activeHighlight.toLowerCase()
+              );
+
+              return (
+                <div className="bg-amber-50/80 border-t border-amber-150 p-2.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-sans text-amber-850 flex items-center font-bold uppercase tracking-wider">
+                      <Info className="w-3.5 h-3.5 mr-1.5 text-amber-600" /> Current Selection: "{activeHighlight}"
+                    </span>
+                    {activeGrammarIssue && (
+                      <span className="text-[10px] text-stone-600 font-sans">
+                        Patch suggestion: Replace with <strong className="text-emerald-700 font-serif">"{activeGrammarIssue.correction}"</strong> ({activeGrammarIssue.issueType})
+                      </span>
+                    )}
+                    {activeReadabilitySuggestion && (
+                      <span className="text-[10px] text-stone-600 font-sans">
+                        Patch suggestion: Replace with <strong className="text-indigo-700 font-serif">"{activeReadabilitySuggestion.suggestion}"</strong> (Alternative)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {(activeGrammarIssue || activeReadabilitySuggestion) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeGrammarIssue) {
+                            applyGrammarFix(activeGrammarIssue.original, activeGrammarIssue.correction);
+                          } else if (activeReadabilitySuggestion) {
+                            applyReadabilityFix(activeReadabilitySuggestion.original, activeReadabilitySuggestion.suggestion);
+                          }
+                          setActiveHighlight(null);
+                        }}
+                        className="cursor-pointer text-[9px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg font-mono transition-all uppercase tracking-wider shadow-xs active:scale-95 flex items-center gap-1"
+                      >
+                        <Check className="w-3 h-3" />
+                        Fix Instantly
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveHighlight(null)}
+                      className="cursor-pointer text-[9px] bg-white border border-amber-200 hover:bg-amber-100/50 text-amber-900 px-2.5 py-1.5 rounded-lg font-mono font-bold transition-colors uppercase tracking-wider"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </section>
 
@@ -1080,7 +1253,7 @@ export default function App() {
                   </div>
 
                   {/* Dense Tab Scroll Content */}
-                  <div className="p-4 overflow-y-auto max-h-[300px] lg:max-h-[350px] flex-1">
+                  <div className="p-4 overflow-y-auto max-h-[500px] lg:max-h-[580px] flex-1">
                     
                     {/* Tab 1: Overview Summary */}
                     {activeTab === "metrics" && (
@@ -1141,6 +1314,22 @@ export default function App() {
                                 <div className="text-[10px] text-stone-500 font-sans leading-relaxed">
                                   {issue.explanation}
                                 </div>
+
+                                {fileType !== "pdf" && (
+                                  <div className="mt-2.5 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        applyGrammarFix(issue.original, issue.correction);
+                                      }}
+                                      className="cursor-pointer text-[9px] font-bold uppercase tracking-wider font-mono text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+                                    >
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                      Apply Correction
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1177,6 +1366,22 @@ export default function App() {
                                 <div className="text-[10.5px] text-stone-505 leading-relaxed font-sans mt-0.5">
                                   <strong className="text-stone-700">Stylistic Rationale:</strong> {suggestion.reason}
                                 </div>
+
+                                {fileType !== "pdf" && (
+                                  <div className="mt-2.5 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        applyReadabilityFix(suggestion.original, suggestion.suggestion);
+                                      }}
+                                      className="cursor-pointer text-[9px] font-bold uppercase tracking-wider font-mono text-stone-705 bg-stone-50 hover:bg-stone-100 border border-stone-205 py-1.5 px-3 rounded-lg flex items-center gap-1 transition-all active:scale-95 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+                                    >
+                                      <Check className="w-3.5 h-3.5 text-stone-500" />
+                                      Apply Alternative
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
